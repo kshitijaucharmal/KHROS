@@ -15,8 +15,19 @@ use crate::{
 use tock_registers::{
     interfaces::{ReadWriteable, Writeable},
     register_bitfields, register_structs,
-    registers::ReadWrite,
+    registers::{ReadOnly, ReadWrite, WriteOnly},
 };
+
+use core::ptr;
+
+const GPIO_FSEL0: u32 = 0x3F20_0000;
+const GPIO_FSEL1: u32 = 0x3F20_0004;
+const GPIO_FSEL2: u32 = 0x3F20_0008;
+const GPIO_SETO: u32 = 0x3F20_001C;
+const GPIO_CLRO: u32 = 0x3F20_0028;
+
+const GPIO_LEV0: u32 = 0x3F20_0034;
+const GPIO_LEV1: u32 = 0x3F20_0038;
 
 //--------------------------------------------------------------------------------------------------
 // Private Definitions
@@ -32,20 +43,18 @@ register_bitfields! {
 
     /// GPIO Function Select 1
     GPFSEL1 [
-        /// Pin 15
-        FSEL15 OFFSET(15) NUMBITS(3) [
-            Input = 0b000,
-            Output = 0b001,
-            AltFunc0 = 0b100  // PL011 UART RX
+        FSEL11 OFFSET(3)  NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        FSEL12 OFFSET(6)  NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        FSEL13 OFFSET(9)  NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        /// Pin 14 AltFunc0 PL011 UART TX
+        FSEL14 OFFSET(12) NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        /// Pin 15 AltFunc0 PL011 UART RX
+        FSEL15 OFFSET(15) NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        FSEL16 OFFSET(18) NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        FSEL17 OFFSET(21) NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        FSEL18 OFFSET(24) NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ],
+        FSEL19 OFFSET(27) NUMBITS(3) [ Input = 0b000, Output = 0b001, AltFunc0 = 0b100 ]
 
-        ],
-
-        /// Pin 14
-        FSEL14 OFFSET(12) NUMBITS(3) [
-            Input = 0b000,
-            Output = 0b001,
-            AltFunc0 = 0b100  // PL011 UART TX
-        ]
     ],
 
     /// GPIO Pull-up/down Register
@@ -101,9 +110,15 @@ register_structs! {
         (0x00 => _reserved1),
         (0x04 => GPFSEL1: ReadWrite<u32, GPFSEL1::Register>),
         (0x08 => _reserved2),
+        (0x1C => GPSET0: WriteOnly<u32>),   // Set GPIO 0–31
+        (0x20 => GPSET1: WriteOnly<u32>),   // Set GPIO 32–53
+        (0x24 => _reserved3),               // 0x24 is reserved (not used)
+        (0x28 => GPCLR0: WriteOnly<u32>),   // Clear GPIO 0–31
+        (0x2C => GPCLR1: WriteOnly<u32>),   // Clear GPIO 32–53
+        (0x30 => _reserved4),               // 0x30 reserved
         (0x94 => GPPUD: ReadWrite<u32, GPPUD::Register>),
         (0x98 => GPPUDCLK0: ReadWrite<u32, GPPUDCLK0::Register>),
-        (0x9C => _reserved3),
+        (0x9C => _reserved5),
         (0xE4 => GPIO_PUP_PDN_CNTRL_REG0: ReadWrite<u32, GPIO_PUP_PDN_CNTRL_REG0::Register>),
         (0xE8 => @END),
     }
@@ -188,6 +203,19 @@ impl GPIOInner {
         #[cfg(feature = "bsp_rpi4")]
         self.disable_pud_14_15_bcm2711();
     }
+
+    pub fn set_gpio17_as_output(&self) {
+        self.registers.GPFSEL1.modify(GPFSEL1::FSEL17::Output);
+    }
+
+    pub fn set_high(&self) {
+        self.registers.GPSET0.set(1 << 17);
+    }
+
+    /// Set GPIO17 low
+    pub fn set_low(&self) {
+        self.registers.GPCLR0.set(1 << 17);
+    }
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -211,6 +239,16 @@ impl GPIO {
     /// Concurrency safe version of `GPIOInner.map_pl011_uart()`
     pub fn map_pl011_uart(&self) {
         self.inner.lock(|inner| inner.map_pl011_uart())
+    }
+
+    pub fn set_gpio17_as_output(&self) {
+        self.inner.lock(|inner| inner.set_gpio17_as_output())
+    }
+    pub fn set_high(&self) {
+        self.inner.lock(|inner| inner.set_high())
+    }
+    pub fn set_low(&self) {
+        self.inner.lock(|inner| inner.set_low())
     }
 }
 

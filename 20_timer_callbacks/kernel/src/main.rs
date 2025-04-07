@@ -86,11 +86,31 @@ fn kernel_main() -> ! {
     info!("Kernel heap:");
     memory::heap_alloc::kernel_heap_allocator().print_usage();
 
-    time::time_manager().set_timeout_once(Duration::from_secs(5), Box::new(|| info!("Once 5")));
-    time::time_manager().set_timeout_once(Duration::from_secs(3), Box::new(|| info!("Once 2")));
-    time::time_manager()
-        .set_timeout_periodic(Duration::from_secs(1), Box::new(|| info!("Periodic 1 sec")));
+    // time::time_manager().set_timeout_once(Duration::from_secs(5), Box::new(|| info!("Once 5")));
+    // time::time_manager().set_timeout_once(Duration::from_secs(3), Box::new(|| info!("Once 2")));
+    // time::time_manager()
+    //     .set_timeout_periodic(Duration::from_secs(1), Box::new(|| info!("Periodic 1 sec")));
+
+    info!("GPIO Testing");
+    if let Err(x) = unsafe { bsp::driver::gpio_testing() } {
+        panic!("GPIO testing failed {}", x);
+    }
+
+    for i in (0..20).step_by(2) {
+        time::time_manager().set_timeout_once(Duration::from_secs(i), Box::new(|| gpio_on()));
+        time::time_manager().set_timeout_once(Duration::from_secs(i + 1), Box::new(|| gpio_off()));
+    }
+    info!("GPIO Testing Finished");
 
     info!("Echoing input now");
     cpu::wait_forever();
+}
+
+fn gpio_on() {
+    unsafe { bsp::driver::gpio_high() };
+    info!("GPIO Setting ON");
+}
+fn gpio_off() {
+    unsafe { bsp::driver::gpio_low() };
+    info!("GPIO Setting OFF");
 }
