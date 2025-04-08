@@ -15,6 +15,9 @@
 
 extern crate alloc;
 
+use core::time::Duration;
+
+use alloc::boxed::Box;
 use libkernel::{bsp, cpu, driver, exception, info, memory, state, time};
 
 /// Early init code.
@@ -98,12 +101,22 @@ fn kernel_main() -> ! {
         bsp::driver::gpio_as_output(pin);
     }
 
-    for i in (0..20).step_by(2) {
-        time::time_manager()
-            .set_timeout_once(Duration::from_secs(i), Box::new(move || gpio_on(pin)));
-        time::time_manager()
-            .set_timeout_once(Duration::from_secs(i + 1), Box::new(move || gpio_off(pin)));
-    }
+    // Counters
+    // info!("Hex Counter:");
+    // hex_counter_schedule();
+    // info!(" ");
+    // info!("Left Ring Counter:");
+    // start_left_ring_counter();
+    // info!("Right Ring Counter:");
+    // right_ring_counter_schedule();
+    // info!(" ");
+
+    // for i in (0..20).step_by(2) {
+    //     time::time_manager()
+    //         .set_timeout_once(Duration::from_secs(i), Box::new(move || gpio_on(pin)));
+    //     time::time_manager()
+    //         .set_timeout_once(Duration::from_secs(i + 1), Box::new(move || gpio_off(pin)));
+    // }
 
     info!("Echoing input now");
     cpu::wait_forever();
@@ -129,9 +142,101 @@ fn kernel_main() -> ! {
 }
 fn gpio_on(pin: u8) {
     unsafe { bsp::driver::gpio_high(pin) };
-    info!("GPIO Setting ON");
+    info!("{} on", pin);
 }
 fn gpio_off(pin: u8) {
     unsafe { bsp::driver::gpio_low(pin) };
-    info!("GPIO Setting OFF");
+    // info!("{} off", pin);
+}
+
+fn gpio_on_after(pin: u8, seconds: u64) {
+    time::time_manager()
+        .set_timeout_once(Duration::from_secs(seconds), Box::new(move || gpio_on(pin)));
+}
+
+fn gpio_off_after(pin: u8, seconds: u64) {
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(seconds),
+        Box::new(move || gpio_off(pin)),
+    );
+}
+
+const HEX_PINS: [u8; 4] = [1, 2, 3, 4];
+const RING_PINS: [u8; 5] = [5, 6, 7, 8, 9];
+
+fn setup_output(pin: u8) {
+    unsafe {
+        bsp::driver::gpio_as_output(pin);
+    }
+}
+
+fn hex_counter_step(step: u8) {
+    let value = step & 0x0F;
+
+    for (i, &pin) in HEX_PINS.iter().enumerate() {
+        setup_output(pin);
+        if (value >> i) & 1 == 1 {
+            gpio_on(pin);
+        } else {
+            gpio_off(pin);
+        }
+    }
+
+    // Schedule next step
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(1),
+        Box::new(move || hex_counter_step((step + 1) % 16)),
+    );
+}
+
+fn start_hex_counter() {
+    hex_counter_step(0);
+}
+
+fn left_ring_counter_step(index: usize) {
+    for (i, &pin) in RING_PINS.iter().enumerate() {
+        setup_output(pin);
+        if i == index {
+            gpio_on(pin);
+        } else {
+            gpio_off(pin);
+        }
+    }
+
+    // Schedule next step
+    let next = (index + 1) % RING_PINS.len();
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(1),
+        Box::new(move || left_ring_counter_step(next)),
+    );
+}
+
+fn start_left_ring_counter() {
+    left_ring_counter_step(0);
+}
+
+fn right_ring_counter_step(index: usize) {
+    for (i, &pin) in RING_PINS.iter().enumerate() {
+        setup_output(pin);
+        if i == index {
+            gpio_on(pin);
+        } else {
+            gpio_off(pin);
+        }
+    }
+
+    // Schedule next step
+    let next = if index == 0 {
+        RING_PINS.len() - 1
+    } else {
+        index - 1
+    };
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(1),
+        Box::new(move || right_ring_counter_step(next)),
+    );
+}
+
+fn start_right_ring_counter() {
+    right_ring_counter_step(RING_PINS.len() - 1);
 }
