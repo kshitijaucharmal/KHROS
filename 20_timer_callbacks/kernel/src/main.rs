@@ -91,26 +91,48 @@ fn kernel_main() -> ! {
     // time::time_manager()
     //     .set_timeout_periodic(Duration::from_secs(1), Box::new(|| info!("Periodic 1 sec")));
 
-    info!("GPIO Testing");
-    if let Err(x) = unsafe { bsp::driver::gpio_testing() } {
-        panic!("GPIO testing failed {}", x);
+    // Dont use 14 or 15 (UART)
+    let pin: u8 = 18;
+    info!("GPIO Testing on PIN: {}", pin);
+    unsafe {
+        bsp::driver::gpio_as_output(pin);
     }
 
     for i in (0..20).step_by(2) {
-        time::time_manager().set_timeout_once(Duration::from_secs(i), Box::new(|| gpio_on()));
-        time::time_manager().set_timeout_once(Duration::from_secs(i + 1), Box::new(|| gpio_off()));
+        time::time_manager()
+            .set_timeout_once(Duration::from_secs(i), Box::new(move || gpio_on(pin)));
+        time::time_manager()
+            .set_timeout_once(Duration::from_secs(i + 1), Box::new(move || gpio_off(pin)));
     }
     info!("GPIO Testing Finished");
 
     info!("Echoing input now");
     cpu::wait_forever();
-}
 
-fn gpio_on() {
-    unsafe { bsp::driver::gpio_high() };
+    // After timer
+    // use alloc::sync::Arc;
+    // use core::sync::atomic::{AtomicBool, Ordering};
+    //
+    // let flag = Arc::new(AtomicBool::new(false));
+    // let flag_clone = flag.clone();
+    //
+    // time_manager().set_timeout_once(
+    //     Duration::from_secs(2),
+    //     Box::new(move || {
+    //         flag_clone.store(true, Ordering::Relaxed);
+    //     }),
+    // );
+    //
+    // // Later in your code (maybe in a loop or another IRQ)
+    // if flag.load(Ordering::Relaxed) {
+    //     println!("✅ Timer has finished!");
+    // }
+}
+fn gpio_on(pin: u8) {
+    unsafe { bsp::driver::gpio_high(pin) };
     info!("GPIO Setting ON");
 }
-fn gpio_off() {
-    unsafe { bsp::driver::gpio_low() };
+fn gpio_off(pin: u8) {
+    unsafe { bsp::driver::gpio_low(pin) };
     info!("GPIO Setting OFF");
 }

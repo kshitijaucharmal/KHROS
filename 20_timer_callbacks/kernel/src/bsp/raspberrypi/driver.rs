@@ -180,22 +180,16 @@ pub unsafe fn init() -> Result<(), &'static str> {
     Ok(())
 }
 
-pub unsafe fn gpio_testing() -> Result<(), &'static str> {
-    static INIT_DONE: AtomicBool = AtomicBool::new(false);
-    if INIT_DONE.load(Ordering::Relaxed) {
-        init();
-    }
-
-    GPIO.assume_init_ref().set_gpio17_as_output();
-
-    Ok(())
+pub unsafe fn gpio_as_output(pin: u8) {
+    GPIO.assume_init_ref().set_pin_as_output(pin);
 }
 
-pub unsafe fn gpio_high() {
-    GPIO.assume_init_ref().set_high();
+pub unsafe fn gpio_high(pin: u8) {
+    GPIO.assume_init_ref().set_gpio_high(pin);
 }
-pub unsafe fn gpio_low() {
-    GPIO.assume_init_ref().set_low();
+
+pub unsafe fn gpio_low(pin: u8) {
+    GPIO.assume_init_ref().set_gpio_low(pin);
 }
 
 /// Minimal code needed to bring up the console in QEMU (for testing only). This is often less steps
