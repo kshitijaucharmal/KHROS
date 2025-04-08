@@ -10,12 +10,12 @@
 //! - <https://developer.arm.com/documentation/ddi0183/latest>
 
 use crate::{
-    bsp::device_driver::common::MMIODerefWrapper,
+    bsp::{device_driver::common::MMIODerefWrapper, driver::gpio_high},
     console, cpu, driver,
     exception::{self, asynchronous::IRQNumber},
+    info,
     memory::{Address, Virtual},
-    synchronization,
-    synchronization::IRQSafeNullLock,
+    synchronization::{self, IRQSafeNullLock},
 };
 use core::fmt;
 use tock_registers::{
@@ -27,6 +27,8 @@ use tock_registers::{
 //--------------------------------------------------------------------------------------------------
 // Private Definitions
 //--------------------------------------------------------------------------------------------------
+
+const CMD_BUF_CAPACITY: usize = 64;
 
 // PL011 UART registers.
 //
@@ -224,6 +226,8 @@ struct PL011UartInner {
     registers: Registers,
     chars_written: usize,
     chars_read: usize,
+    cmd_buf: [u8; CMD_BUF_CAPACITY],
+    cmd_len: usize,
 }
 
 //--------------------------------------------------------------------------------------------------
@@ -250,6 +254,8 @@ impl PL011UartInner {
             registers: Registers::new(mmio_start_addr),
             chars_written: 0,
             chars_read: 0,
+            cmd_buf: [0; 64],
+            cmd_len: 0,
         }
     }
 
@@ -506,7 +512,59 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
             if pending.matches_any(MIS::RXMIS::SET + MIS::RTMIS::SET) {
                 // Echo any received characters.
                 while let Some(c) = inner.read_char_converting(BlockingMode::NonBlocking) {
-                    inner.write_char(c)
+                    inner.write_char(c);
+
+                    match c {
+                        '\n' => {
+                            // Process the command
+                            let command =
+                                core::str::from_utf8(&inner.cmd_buf[..inner.cmd_len]).unwrap_or("");
+
+                            match command.trim() {
+                                "uptime" => {
+                                    for b in b"Uptime is 123 seconds\n" {
+                                        inner.write_char(*b as char);
+                                    }
+                                }
+                                "shutdown" => {
+                                    for b in b"Shutting down...\n" {
+                                        inner.write_char(*b as char);
+                                    }
+                                    // trigger_shutdown();
+                                }
+                                "gpio_on" => {
+                                    for b in b"GPIO ON Selected...\n" {
+                                        inner.write_char(*b as char);
+                                    }
+                                }
+                                "gpio_off" => {
+                                    for b in b"GPIO OFF Selected...\n" {
+                                        inner.write_char(*b as char);
+                                    }
+                                }
+                                _ => {
+                                    for b in b"Unknown command\n" {
+                                        inner.write_char(*b as char);
+                                    }
+                                }
+                            }
+
+                            inner.cmd_len = 0;
+                        }
+
+                        _ => {
+                            if inner.cmd_len < inner.cmd_buf.len() {
+                                inner.cmd_buf[inner.cmd_len] = c as u8;
+                                inner.cmd_len += 1;
+                            } else {
+                                // Command too long, reset and notify
+                                inner.cmd_len = 0;
+                                for b in b"Command too long\n" {
+                                    inner.write_char(*b as char);
+                                }
+                            }
+                        }
+                    }
                 }
             }
         });

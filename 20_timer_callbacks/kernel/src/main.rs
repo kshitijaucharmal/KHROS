@@ -104,7 +104,6 @@ fn kernel_main() -> ! {
         time::time_manager()
             .set_timeout_once(Duration::from_secs(i + 1), Box::new(move || gpio_off(pin)));
     }
-    info!("GPIO Testing Finished");
 
     info!("Echoing input now");
     cpu::wait_forever();
