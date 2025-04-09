@@ -1,7 +1,3 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-//
-// Copyright (c) 2018-2023 Andre Richter <andre.o.richter@gmail.com>
-
 //! PL011 UART driver.
 //!
 //! # Resources
@@ -18,7 +14,7 @@ use crate::{
     synchronization::{self, IRQSafeNullLock},
 };
 use alloc::{boxed::Box, vec::Vec};
-use core::{fmt, time::Duration};
+use core::{arch::asm, fmt, time::Duration};
 use tock_registers::{
     interfaces::{Readable, Writeable},
     register_bitfields, register_structs,
@@ -529,17 +525,25 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
                                 let (_, privilege_level) = exception::current_privilege_level();
                                 info!("Current privilege level: {}", privilege_level);
                             }
+                            // GPIO RESET
+                            else if command.starts_with("reset_gpio") {
+                                info!("Reset All GPIO Connections");
+                                stop_all_patterns();
+                                reset_gpio();
+                            }
                             // GPIO ON
                             else if command.starts_with("gpio_on") {
                                 let parts: Vec<&str> = command.split_whitespace().collect();
                                 info!("{:?}", parts);
                                 gpio_on(parts[1].parse::<i32>().unwrap() as u8);
+                                info!("{} on", parts[1]);
                             }
                             // GPIO OFF
                             else if command.starts_with("gpio_off") {
                                 let parts: Vec<&str> = command.split_whitespace().collect();
                                 info!("{:?}", parts[1]);
                                 gpio_off(parts[1].parse::<i32>().unwrap() as u8);
+                                info!("{} off", parts[1]);
                             }
                             // Board Name
                             else if command.starts_with("board_name") {
@@ -602,6 +606,10 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
                                 info!("Right Counter:");
                                 start_right_ring_counter();
                             }
+                            // Dhrystone
+                            else if command.starts_with("test") {
+                                run_dhrystone();
+                            }
                             // Not found
                             else {
                                 info!("Command not found: ");
@@ -631,15 +639,23 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
     }
 }
 
-// Programs
+fn reset_gpio() {
+    for pinNumber in RING_PINS {
+        setup_output(pinNumber);
+        gpio_off(pinNumber);
+    }
+}
 
+// Programs
 fn gpio_on(pin: u8) {
+    setup_output(pin);
     unsafe { bsp::driver::gpio_high(pin) };
-    info!("{} on", pin);
+    // info!("{} on", pin);
 }
 fn gpio_off(pin: u8) {
+    setup_output(pin);
     unsafe { bsp::driver::gpio_low(pin) };
-    info!("{} off", pin);
+    // info!("{} off", pin);
 }
 
 fn gpio_on_after(pin: u8, seconds: u64) {
@@ -702,7 +718,13 @@ fn hex_counter_step(step: u8) {
         } else {
             gpio_off(pin);
         }
-        info!("----------------------");
+    }
+    info!("----------------------");
+
+    if (step + 1) == 16 {
+        stop_all_patterns();
+        reset_gpio();
+        return;
     }
 
     // Schedule next step
@@ -729,7 +751,13 @@ fn left_ring_counter_step(index: usize) {
         } else {
             gpio_off(pin);
         }
-        info!("----------------------");
+    }
+    info!("----------------------");
+
+    if (index + 1) == RING_PINS.len() {
+        stop_all_patterns();
+        reset_gpio();
+        return;
     }
 
     // Schedule next step
@@ -757,15 +785,17 @@ fn right_ring_counter_step(index: usize) {
         } else {
             gpio_off(pin);
         }
-        info!("----------------------");
     }
-
+    info!("----------------------");
     // Schedule next step
     let next = if index == 0 {
-        RING_PINS.len() - 1
+        stop_all_patterns();
+        reset_gpio();
+        return;
     } else {
         index - 1
     };
+
     time::time_manager().set_timeout_once(
         Duration::from_secs(1),
         Box::new(move || right_ring_counter_step(next)),
@@ -774,4 +804,88 @@ fn right_ring_counter_step(index: usize) {
 
 fn start_right_ring_counter() {
     right_ring_counter_step(RING_PINS.len() - 1);
+}
+
+#[repr(C)]
+struct Record<'a> {
+    ptr_comp: Option<&'a mut Record<'a>>,
+    discr: i32,
+    enum_comp: i32,
+    int_comp: i32,
+    string_comp: &'a str,
+}
+
+static STRING1: &str = "DHRYSTONE PROGRAM, 1'ST STRING";
+
+pub fn run_dhrystone() {
+    const ITERATIONS: usize = 10_000;
+
+    // Create two records on stack
+    let mut record1 = Record {
+        ptr_comp: None,
+        discr: 0,
+        enum_comp: 0,
+        int_comp: 0,
+        string_comp: STRING1,
+    };
+
+    let mut record2 = Record {
+        ptr_comp: None,
+        discr: 0,
+        enum_comp: 0,
+        int_comp: 0,
+        string_comp: STRING1,
+    };
+
+    record1.ptr_comp = Some(&mut record2);
+
+    let mut int1 = 0;
+    let mut int2 = 0;
+    let mut int3 = 0;
+
+    let mut char1 = 'A';
+    let mut char2 = 'B';
+
+    info!("Running {} Dhrystone iterations...", ITERATIONS);
+
+    let start_cycles = get_cycle_count(); // You'll implement this
+    for _ in 0..ITERATIONS {
+        // Integer ops
+        int1 = 2;
+        int2 = 3;
+        int3 = int1 + int2;
+
+        // Conditional
+        if char1 != char2 {
+            int3 += 1;
+        }
+
+        // Struct manipulation
+        if let Some(ptr) = record1.ptr_comp.as_mut() {
+            ptr.int_comp = int3;
+            ptr.string_comp = "DHRYSTONE STRING";
+        }
+
+        // Simulate some string ops
+        let _ = &record1.string_comp[0..5];
+    }
+    let end_cycles = get_cycle_count();
+
+    let total_cycles = end_cycles.wrapping_sub(start_cycles);
+    let cycles_per_iter = total_cycles as f64 / ITERATIONS as f64;
+
+    info!("Dhrystone done.");
+    info!("Total cycles: {}", total_cycles);
+    info!("Cycles per iteration: {:.2}", cycles_per_iter);
+}
+
+fn get_cycle_count() -> u64 {
+    let value: u64;
+    unsafe {
+        asm!(
+            "mrs {value}, cntvct_el0",
+            value = out(reg) value
+        );
+    }
+    value
 }

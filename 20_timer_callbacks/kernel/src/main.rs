@@ -1,12 +1,3 @@
-// SPDX-License-Identifier: MIT OR Apache-2.0
-//
-// Copyright (c) 2018-2023 Andre Richter <andre.o.richter@gmail.com>
-
-// Rust embedded logo for `make doc`.
-#![doc(
-    html_logo_url = "https://raw.githubusercontent.com/rust-embedded/wg/master/assets/logo/ewg-logo-blue-white-on-transparent.png"
-)]
-
 //! The `kernel` binary.
 
 #![feature(format_args_nl)]
@@ -20,12 +11,6 @@ use core::time::Duration;
 use alloc::boxed::Box;
 use libkernel::{bsp, cpu, driver, exception, info, memory, state, time};
 
-/// Early init code.
-///
-/// When this code runs, virtual memory is already enabled.
-///
-/// # Safety
-///
 /// - Only a single core must be active and running this function.
 /// - Printing will not work until the respective driver's MMIO is remapped.
 #[no_mangle]
@@ -63,31 +48,44 @@ fn kernel_main() -> ! {
     use alloc::boxed::Box;
     use core::time::Duration;
 
-    // info!("{}", libkernel::version());
-
-    // TODO: Seach what this does
-    // info!("Exception handling state:");
-    // exception::asynchronous::print_state();
+    show_logo();
+    reset_gpio();
 
     info!("Echoing input now");
     cpu::wait_forever();
+}
 
-    // After timer
-    // use alloc::sync::Arc;
-    // use core::sync::atomic::{AtomicBool, Ordering};
-    //
-    // let flag = Arc::new(AtomicBool::new(false));
-    // let flag_clone = flag.clone();
-    //
-    // time_manager().set_timeout_once(
-    //     Duration::from_secs(2),
-    //     Box::new(move || {
-    //         flag_clone.store(true, Ordering::Relaxed);
-    //     }),
-    // );
-    //
-    // // Later in your code (maybe in a loop or another IRQ)
-    // if flag.load(Ordering::Relaxed) {
-    //     println!("✅ Timer has finished!");
-    // }
+fn show_logo() {
+    info!("   ________________________________________________________  ");
+    info!("  /________________________________________________________| ");
+    info!(" | ##    ##  ######    ##     ##     ## ##       #######   | ");
+    info!(" | ##   ##   ##   ##   ##     ##  ##       ##  ##          | ");
+    info!(" | ##  ##    ##   ##   ##     ##  ##       ##  ##          | ");
+    info!(" | ## #      #####     ## ### ##  ##       ##     ###      | ");
+    info!(" | ##  ##    ##   ##   ##     ##  ##       ##        ###   | ");
+    info!(" | ##   ##   ##    ##  ##     ##  ##       ##          ##  | ");
+    info!(" | ##    ##  ##     ## ##     ##     ## ##      ########   | ");
+    info!(" |_________________________________________________________| ");
+    info!(" |________________________________________________________/  ");
+    info!("     K         R          H           O            S         ");
+    info!("------------------------v 0.1.0----------------------------- ");
+}
+
+fn reset_gpio() {
+    for pinNumber in [1, 2, 3, 4, 5] {
+        setup_output(pinNumber);
+        gpio_off(pinNumber);
+    }
+}
+
+fn gpio_off(pin: u8) {
+    setup_output(pin);
+    unsafe { bsp::driver::gpio_low(pin) };
+    // info!("{} off", pin);
+}
+
+fn setup_output(pin: u8) {
+    unsafe {
+        bsp::driver::gpio_as_output(pin);
+    }
 }
