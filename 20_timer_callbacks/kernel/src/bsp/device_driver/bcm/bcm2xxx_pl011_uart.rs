@@ -17,8 +17,8 @@ use crate::{
     memory::{Address, Virtual},
     synchronization::{self, IRQSafeNullLock},
 };
-use alloc::vec::Vec;
-use core::fmt;
+use alloc::{boxed::Box, vec::Vec};
+use core::{fmt, time::Duration};
 use tock_registers::{
     interfaces::{Readable, Writeable},
     register_bitfields, register_structs,
@@ -572,6 +572,36 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
                                 info!("Kernel heap:");
                                 memory::heap_alloc::kernel_heap_allocator().print_usage();
                             }
+                            // Hex Counter
+                            else if command.starts_with("hex_counter") {
+                                stop_all_patterns();
+                                unsafe {
+                                    HEX_RUNNING = true;
+                                    CURRENT_PATTERN = Some(PatternType::Hex);
+                                }
+                                info!("Hex Counter:");
+                                start_hex_counter();
+                            }
+                            // Left Counter
+                            else if command.starts_with("left_counter") {
+                                stop_all_patterns();
+                                unsafe {
+                                    LEFT_RUNNING = true;
+                                    CURRENT_PATTERN = Some(PatternType::Left);
+                                }
+                                info!("Left Counter:");
+                                start_left_ring_counter();
+                            }
+                            // Right Counter
+                            else if command.starts_with("right_counter") {
+                                stop_all_patterns();
+                                unsafe {
+                                    RIGHT_RUNNING = true;
+                                    CURRENT_PATTERN = Some(PatternType::Right);
+                                }
+                                info!("Right Counter:");
+                                start_right_ring_counter();
+                            }
                             // Not found
                             else {
                                 info!("Command not found: ");
@@ -600,6 +630,9 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
         Ok(())
     }
 }
+
+// Programs
+
 fn gpio_on(pin: u8) {
     unsafe { bsp::driver::gpio_high(pin) };
     info!("{} on", pin);
@@ -607,4 +640,138 @@ fn gpio_on(pin: u8) {
 fn gpio_off(pin: u8) {
     unsafe { bsp::driver::gpio_low(pin) };
     info!("{} off", pin);
+}
+
+fn gpio_on_after(pin: u8, seconds: u64) {
+    time::time_manager()
+        .set_timeout_once(Duration::from_secs(seconds), Box::new(move || gpio_on(pin)));
+}
+
+fn gpio_off_after(pin: u8, seconds: u64) {
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(seconds),
+        Box::new(move || gpio_off(pin)),
+    );
+}
+
+// Counters (Move to other file)
+
+static mut HEX_RUNNING: bool = false;
+static mut LEFT_RUNNING: bool = false;
+static mut RIGHT_RUNNING: bool = false;
+
+#[derive(PartialEq, Eq, Clone, Copy)]
+enum PatternType {
+    Hex,
+    Left,
+    Right,
+}
+
+static mut CURRENT_PATTERN: Option<PatternType> = None;
+
+const HEX_PINS: [u8; 4] = [1, 2, 3, 4];
+const RING_PINS: [u8; 5] = [1, 2, 3, 4, 5];
+
+fn stop_all_patterns() {
+    unsafe {
+        HEX_RUNNING = false;
+        LEFT_RUNNING = false;
+        RIGHT_RUNNING = false;
+        CURRENT_PATTERN = None;
+    }
+}
+
+fn setup_output(pin: u8) {
+    unsafe {
+        bsp::driver::gpio_as_output(pin);
+    }
+}
+
+fn hex_counter_step(step: u8) {
+    unsafe {
+        if !HEX_RUNNING {
+            return;
+        }
+    }
+    let value = step & 0x0F;
+
+    for (i, &pin) in HEX_PINS.iter().enumerate() {
+        setup_output(pin);
+        if (value >> i) & 1 == 1 {
+            gpio_on(pin);
+        } else {
+            gpio_off(pin);
+        }
+        info!("----------------------");
+    }
+
+    // Schedule next step
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(1),
+        Box::new(move || hex_counter_step((step + 1) % 16)),
+    );
+}
+
+fn start_hex_counter() {
+    hex_counter_step(0);
+}
+
+fn left_ring_counter_step(index: usize) {
+    unsafe {
+        if !LEFT_RUNNING {
+            return;
+        }
+    }
+    for (i, &pin) in RING_PINS.iter().enumerate() {
+        setup_output(pin);
+        if i == index {
+            gpio_on(pin);
+        } else {
+            gpio_off(pin);
+        }
+        info!("----------------------");
+    }
+
+    // Schedule next step
+    let next = (index + 1) % RING_PINS.len();
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(1),
+        Box::new(move || left_ring_counter_step(next)),
+    );
+}
+
+fn start_left_ring_counter() {
+    left_ring_counter_step(0);
+}
+
+fn right_ring_counter_step(index: usize) {
+    unsafe {
+        if !RIGHT_RUNNING {
+            return;
+        }
+    }
+    for (i, &pin) in RING_PINS.iter().enumerate() {
+        setup_output(pin);
+        if i == index {
+            gpio_on(pin);
+        } else {
+            gpio_off(pin);
+        }
+        info!("----------------------");
+    }
+
+    // Schedule next step
+    let next = if index == 0 {
+        RING_PINS.len() - 1
+    } else {
+        index - 1
+    };
+    time::time_manager().set_timeout_once(
+        Duration::from_secs(1),
+        Box::new(move || right_ring_counter_step(next)),
+    );
+}
+
+fn start_right_ring_counter() {
+    right_ring_counter_step(RING_PINS.len() - 1);
 }
