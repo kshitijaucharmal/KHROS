@@ -63,31 +63,11 @@ fn kernel_main() -> ! {
     use alloc::boxed::Box;
     use core::time::Duration;
 
-    info!("{}", libkernel::version());
-    info!("Booting on: {}", bsp::board_name());
+    // info!("{}", libkernel::version());
 
-    info!("MMU online:");
-    memory::mmu::kernel_print_mappings();
-
-    let (_, privilege_level) = exception::current_privilege_level();
-    info!("Current privilege level: {}", privilege_level);
-
-    info!("Exception handling state:");
-    exception::asynchronous::print_state();
-
-    info!(
-        "Architectural timer resolution: {} ns",
-        time::time_manager().resolution().as_nanos()
-    );
-
-    info!("Drivers loaded:");
-    driver::driver_manager().enumerate();
-
-    info!("Registered IRQ handlers:");
-    exception::asynchronous::irq_manager().print_handler();
-
-    info!("Kernel heap:");
-    memory::heap_alloc::kernel_heap_allocator().print_usage();
+    // TODO: Seach what this does
+    // info!("Exception handling state:");
+    // exception::asynchronous::print_state();
 
     // time::time_manager().set_timeout_once(Duration::from_secs(5), Box::new(|| info!("Once 5")));
     // time::time_manager().set_timeout_once(Duration::from_secs(3), Box::new(|| info!("Once 2")));
@@ -102,9 +82,9 @@ fn kernel_main() -> ! {
     }
 
     // Counters
-    // info!("Hex Counter:");
-    // hex_counter_schedule();
-    // info!(" ");
+    info!("Hex Counter:");
+    start_hex_counter();
+    info!(" ");
     // info!("Left Ring Counter:");
     // start_left_ring_counter();
     // info!("Right Ring Counter:");

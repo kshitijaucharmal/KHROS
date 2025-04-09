@@ -2,7 +2,7 @@ import subprocess
 import readline  # For command history and editing
 import os
 
-TTY_DEVICE = "/dev/ttyUSB1"
+TTY_DEVICE = "/dev/ttyUSB0"
 
 def send_command_to_tty(command: str):
     if not command.strip():

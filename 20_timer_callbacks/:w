@@ -499,7 +499,7 @@ impl console::interface::Statistics for PL011Uart {
     }
 }
 
-use crate::{bsp, memory, time};
+use crate::bsp;
 
 impl console::interface::All for PL011Uart {}
 
@@ -524,56 +524,20 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
                                 .unwrap_or("")
                                 .trim();
 
-                            // Privilege level
                             if command.starts_with("level") {
                                 let (_, privilege_level) = exception::current_privilege_level();
                                 info!("Current privilege level: {}", privilege_level);
                             }
-                            // GPIO ON
+                            // "shutdown" => {
+                            //     // trigger_shutdown();
+                            // }
                             else if command.starts_with("gpio_on") {
                                 let parts: Vec<&str> = command.split_whitespace().collect();
                                 info!("{:?}", parts);
-                                gpio_on(parts[1].parse::<i32>().unwrap() as u8);
-                            }
-                            // GPIO OFF
-                            else if command.starts_with("gpio_off") {
+                            } else if command.starts_with("gpio_off") {
                                 let parts: Vec<&str> = command.split_whitespace().collect();
-                                info!("{:?}", parts[1]);
-                                gpio_off(parts[1].parse::<i32>().unwrap() as u8);
-                            }
-                            // Board Name
-                            else if command.starts_with("board_name") {
-                                info!("Booting on: {}", bsp::board_name());
-                            }
-                            // Timer Resolution
-                            else if command.starts_with("timer resolution") {
-                                info!(
-                                    "Architectural timer resolution: {} ns",
-                                    time::time_manager().resolution().as_nanos()
-                                );
-                            }
-                            // MMU
-                            else if command.starts_with("mmu") {
-                                info!("MMU online:");
-                                memory::mmu::kernel_print_mappings();
-                            }
-                            // Driver
-                            else if command.starts_with("driver") {
-                                info!("Drivers loaded:");
-                                driver::driver_manager().enumerate();
-                            }
-                            // Driver
-                            else if command.starts_with("irq_handler") {
-                                info!("Registered IRQ handlers:");
-                                exception::asynchronous::irq_manager().print_handler();
-                            }
-                            // Kernel Heap
-                            else if command.starts_with("kernel heap") {
-                                info!("Kernel heap:");
-                                memory::heap_alloc::kernel_heap_allocator().print_usage();
-                            }
-                            // Not found
-                            else {
+                                info!("{:?}", parts);
+                            } else {
                                 info!("Command not found: ");
                             }
 
@@ -599,12 +563,4 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
 
         Ok(())
     }
-}
-fn gpio_on(pin: u8) {
-    unsafe { bsp::driver::gpio_high(pin) };
-    info!("{} on", pin);
-}
-fn gpio_off(pin: u8) {
-    unsafe { bsp::driver::gpio_low(pin) };
-    info!("{} off", pin);
 }
