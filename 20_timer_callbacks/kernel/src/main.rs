@@ -72,9 +72,9 @@ fn show_logo() {
 }
 
 fn reset_gpio() {
-    for pinNumber in [1, 2, 3, 4, 5] {
-        setup_output(pinNumber);
-        gpio_off(pinNumber);
+    for pin_number in [1, 2, 3, 4, 5, 6] {
+        setup_output(pin_number);
+        gpio_off(pin_number);
     }
 }
 

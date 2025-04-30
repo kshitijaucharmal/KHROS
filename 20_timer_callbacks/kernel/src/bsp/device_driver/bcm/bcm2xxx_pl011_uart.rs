@@ -550,7 +550,7 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
                                 info!("Booting on: {}", bsp::board_name());
                             }
                             // Timer Resolution
-                            else if command.starts_with("timer resolution") {
+                            else if command.starts_with("timer_resolution") {
                                 info!(
                                     "Architectural timer resolution: {} ns",
                                     time::time_manager().resolution().as_nanos()
@@ -572,7 +572,7 @@ impl exception::asynchronous::interface::IRQHandler for PL011Uart {
                                 exception::asynchronous::irq_manager().print_handler();
                             }
                             // Kernel Heap
-                            else if command.starts_with("kernel heap") {
+                            else if command.starts_with("kernel_heap") {
                                 info!("Kernel heap:");
                                 memory::heap_alloc::kernel_heap_allocator().print_usage();
                             }

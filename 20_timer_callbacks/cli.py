@@ -17,7 +17,7 @@ class TextEditor:
         self.history: List[List[str]] = []  # Stack to store previous states
         self.tab_size = 4  # Tab size in spaces
         self.variables = {}  # Dictionary to store variables
-        
+
         # Define command categories and their colors
         self.command_colors = {
             "gpio": curses.color_pair(5),  # Red for GPIO commands
@@ -28,7 +28,7 @@ class TextEditor:
             "keyword": curses.color_pair(2),  # Yellow for Python keywords
             "variable": curses.color_pair(4),  # Blue for variables
         }
-        
+
         # Define available commands with descriptions
         self.available_commands = {
             "gpio": {
@@ -44,11 +44,11 @@ class TextEditor:
             "system": {
                 "level": "Show current privilege level",
                 "board_name": "Display board name",
-                "timer resolution": "Show timer resolution",
+                "timer_resolution": "Show timer resolution",
                 "mmu": "Display MMU status",
                 "driver": "List loaded drivers",
                 "irq_handler": "Show interrupt handlers",
-                "kernel heap": "Display kernel heap info"
+                "kernel_heap": "Display kernel heap info"
             },
             "test": {
                 "test": "Run system test"
@@ -59,14 +59,14 @@ class TextEditor:
                 "end": "End control block"
             }
         }
-        
+
         # Define Python keywords and operators
         self.python_keywords = {
             "in", "range", "True", "False", "None", "and", "or", "not",
             "is", "==", "!=", "<", ">", "<=", ">=", "+", "-", "*", "/", "%",
             "let"  # Add 'let' as a keyword for variable assignment
         }
-        
+
         self.commands = {
             ord('i'): self.enter_insert_mode,
             ord('a'): self.enter_insert_mode_after,
@@ -177,7 +177,7 @@ class TextEditor:
         words = line.split()
         if not words:
             return 0
-            
+
         cmd = words[0].lower()
         if cmd in ["if", "for", "else"]:
             return self.get_indent_level(line) + self.tab_size
@@ -190,23 +190,23 @@ class TextEditor:
         if self.mode == "INSERT":
             # Get current line content
             current_line = self.lines[self.current_line]
-            
+
             # Split current line at cursor
             before_cursor = current_line[:self.current_col]
             after_cursor = current_line[self.current_col:]
-            
+
             # Update current line
             self.lines[self.current_line] = before_cursor
-            
+
             # Calculate indentation for new line
             indent = self.auto_indent_control(before_cursor)
             new_line = " " * indent + after_cursor
-            
+
             # Insert new line
             self.lines.insert(self.current_line + 1, new_line)
             self.current_line += 1
             self.current_col = indent
-            
+
             self.update_status()
             self.refresh()
 
@@ -250,10 +250,10 @@ class TextEditor:
                 parts = line[4:].strip().split("=")
                 if len(parts) != 2:
                     raise ValueError("Invalid variable assignment syntax")
-                
+
                 var_name = parts[0].strip()
                 value = eval(parts[1].strip(), self.variables)
-                
+
                 # Store the variable
                 self.variables[var_name] = value
                 self.status = f"✅ Set {var_name} = {value}"
@@ -283,12 +283,12 @@ class TextEditor:
             if not line:
                 i += 1
                 continue
-                
+
             # Process variable assignment
             if self.process_variable_assignment(line):
                 i += 1
                 continue
-                
+
             # Process if statement
             if line.startswith("if "):
                 condition = line[3:].strip()
@@ -313,7 +313,7 @@ class TextEditor:
                 except Exception as e:
                     self.status = f"❌ Error in if condition: {str(e)}"
                     return []
-                    
+
             # Process else if statement
             elif line.startswith("else if "):
                 condition = line[8:].strip()
@@ -337,7 +337,7 @@ class TextEditor:
                 except Exception as e:
                     self.status = f"❌ Error in else if condition: {str(e)}"
                     return []
-                    
+
             # Process else statement
             elif line == "else":
                 # Include lines until end
@@ -348,7 +348,7 @@ class TextEditor:
                         break
                     processed_lines.append(lines[i])
                     i += 1
-                    
+
             # Process for loop
             elif line.startswith("for "):
                 try:
@@ -356,38 +356,38 @@ class TextEditor:
                     parts = line[4:].strip().split(" in ")
                     if len(parts) != 2 or not parts[1].startswith("range("):
                         raise ValueError("Invalid for loop syntax")
-                    
+
                     var_name = parts[0].strip()
                     range_expr = parts[1][6:-1]  # Remove 'range(' and ')'
                     range_args = [int(arg.strip()) for arg in range_expr.split(",")]
-                    
+
                     # Get loop body
                     loop_body = []
                     i += 1
                     while i < len(lines) and not lines[i].strip().startswith("end"):
                         loop_body.append(lines[i])
                         i += 1
-                    
+
                     # Execute loop
                     for value in range(*range_args):
                         # Set loop variable
                         self.variables[var_name] = value
                         processed_lines.extend(loop_body)
-                        
+
                 except Exception as e:
                     self.status = f"❌ Error in for loop: {str(e)}"
                     return []
                 i += 1
-                
+
             # Skip end statements
             elif line == "end":
                 i += 1
-                
+
             # Regular command
             else:
                 processed_lines.append(line)
                 i += 1
-                
+
         return processed_lines
 
     def send_all_lines(self):
@@ -395,7 +395,7 @@ class TextEditor:
         processed_lines = self.process_control_structures(self.lines)
         if not processed_lines:
             return
-            
+
         for i, line in enumerate(processed_lines):
             line = line.strip()
             if line:
@@ -442,20 +442,20 @@ class TextEditor:
     def show_help_window(self):
         """Display a help window with all available commands"""
         max_y, max_x = self.stdscr.getmaxyx()
-        
+
         # Create a new window for help with safe boundaries
         help_height = min(25, max_y - 4)  # Leave some margin
         help_width = min(70, max_x - 4)   # Leave some margin
         help_y = (max_y - help_height) // 2
         help_x = (max_x - help_width) // 2
-        
+
         help_win = curses.newwin(help_height, help_width, help_y, help_x)
         help_win.box()
-        
+
         # Add title
         title = "Available Commands"
         help_win.addstr(0, (help_width - len(title)) // 2, title, curses.A_BOLD)
-        
+
         # Display commands by category
         y = 2
         for category, commands in self.available_commands.items():
@@ -463,31 +463,31 @@ class TextEditor:
             if y < help_height - 1:
                 help_win.addstr(y, 2, f"{category.upper()}:", self.command_colors[category] | curses.A_BOLD)
                 y += 1
-            
+
             # Commands in category
             for cmd, desc in commands.items():
                 if y < help_height - 2:  # Leave space for close message
                     # Truncate description if too long
                     max_desc_len = help_width - 25  # Leave space for command and formatting
                     truncated_desc = desc[:max_desc_len] + "..." if len(desc) > max_desc_len else desc
-                    
+
                     help_win.addstr(y, 4, f"{cmd}", self.command_colors[category])
                     help_win.addstr(y, 20, f"- {truncated_desc}", curses.color_pair(7))
                     y += 1
-            
+
             y += 1  # Add space between categories
-        
+
         # Add close instruction
         if y < help_height - 1:
             help_win.addstr(help_height - 1, 2, "Press any key to close", curses.A_DIM)
-        
+
         help_win.refresh()
-        
+
         # Wait for key press with timeout
         self.stdscr.timeout(-1)  # Disable timeout temporarily
         self.stdscr.getch()      # Wait for any key press
         self.stdscr.timeout(100) # Restore timeout
-        
+
         # Clear the help window
         help_win.clear()
         help_win.refresh()
@@ -499,15 +499,15 @@ class TextEditor:
         indent = len(line) - len(line.lstrip())
         self.stdscr.addstr(y, x, " " * indent, curses.color_pair(7))
         x += indent
-        
+
         # Get the content without indentation
         content = line.lstrip()
         if not content:
             return x
-            
+
         words = content.split()
         cmd = words[0].lower()
-        
+
         # Check for control structures first
         if cmd in ["if", "for", "else", "end"] or (len(words) > 1 and words[0].lower() == "else" and words[1].lower() == "if"):
             if len(words) > 1 and words[0].lower() == "else" and words[1].lower() == "if":
@@ -529,7 +529,7 @@ class TextEditor:
                     self.highlight_python_keywords(y, x, rest)
                     x += len(rest)
             return x
-                    
+
         # Check other commands
         for category, commands in self.available_commands.items():
             if cmd in commands:
@@ -542,7 +542,7 @@ class TextEditor:
                     self.highlight_python_keywords(y, x, rest)
                     x += len(rest)
                 return x
-                    
+
         # If no command found, print normally with Python keyword highlighting
         self.highlight_python_keywords(y, x, content)
         return x + len(content)
@@ -562,7 +562,7 @@ class TextEditor:
                 current_word += char
         if current_word:
             parts.append(current_word)
-        
+
         current_x = x
         for part in parts:
             if part == " ":
@@ -595,16 +595,16 @@ class TextEditor:
 
         # Display ASCII art header with padding
         header_art = r"""
-  _  __ ____  _   _  ___  ____ 
+  _  __ ____  _   _  ___  ____
  | |/ /|  _ \| | | |/ _ \/ ___|
  | ' / | |_) | |_| | | | \___ \
  | . \ |  _ <|  _  | |_| |___) |
- |_|\_\|_| \_\_| |_|\___/|____/ 
+ |_|\_\|_| \_\_| |_|\___/|____/
         """
         header_lines = header_art.strip().split('\n')
         for i, line in enumerate(header_lines):
             self.stdscr.addstr(i + PADDING_TOP, PADDING_LEFT, line, curses.color_pair(1) | curses.A_BOLD)
-        
+
         # Add version and separator with padding
         version = "v0.1.0"
         self.stdscr.addstr(len(header_lines) + PADDING_TOP, PADDING_LEFT, version, curses.color_pair(1))
@@ -627,10 +627,10 @@ class TextEditor:
         # Display cursor with different style based on mode
         cursor_x = PADDING_LEFT + line_num_width + self.current_col
         if self.mode == "INSERT":
-            self.stdscr.addch(self.current_line + start_y, cursor_x, 
+            self.stdscr.addch(self.current_line + start_y, cursor_x,
                             curses.ACS_CKBOARD, curses.A_REVERSE)
         else:
-            self.stdscr.addch(self.current_line + start_y, cursor_x, 
+            self.stdscr.addch(self.current_line + start_y, cursor_x,
                             ' ', curses.A_REVERSE)
 
         # Display status with color and message
@@ -639,7 +639,7 @@ class TextEditor:
         if len(status_text) > available_width:
             status_text = status_text[:available_width - 3] + "..."
         self.stdscr.addstr(max_y - PADDING_BOTTOM - 1, PADDING_LEFT, status_text, curses.color_pair(3))
-        self.stdscr.addstr(max_y - PADDING_BOTTOM - 1, len(status_text) + PADDING_LEFT, 
+        self.stdscr.addstr(max_y - PADDING_BOTTOM - 1, len(status_text) + PADDING_LEFT,
                          " " * (available_width - len(status_text)), curses.color_pair(3))
 
         # Display enhanced help panel with command categories
@@ -650,24 +650,24 @@ class TextEditor:
             ("Send", "s:line  S:all"),
             ("Quit", ":q")
         ]
-        
+
         # Calculate total width needed
         total_width = sum(len(section[0]) + len(section[1]) + 4 for section in help_sections)
-        
+
         # Center the help panel
         start_x = max(0, (available_width - total_width) // 2) + PADDING_LEFT
-        
+
         # Display help sections with colors and separators
         current_x = start_x
         for i, (title, commands) in enumerate(help_sections):
             # Display section title
             self.stdscr.addstr(max_y - PADDING_BOTTOM, current_x, title, curses.color_pair(4) | curses.A_BOLD)
             current_x += len(title) + 1
-            
+
             # Display commands
             self.stdscr.addstr(max_y - PADDING_BOTTOM, current_x, commands, curses.color_pair(4))
             current_x += len(commands)
-            
+
             # Add separator if not the last section
             if i < len(help_sections) - 1:
                 self.stdscr.addstr(max_y - PADDING_BOTTOM, current_x, " | ", curses.color_pair(4))
@@ -701,11 +701,11 @@ class TextEditor:
 
         while True:
             c = self.stdscr.getch()
-            
+
             # Skip if no key was pressed (timeout)
             if c == -1:
                 continue
-                
+
             # Handle arrow keys and special keys
             if c == curses.KEY_UP:
                 self.move_up()
@@ -791,7 +791,7 @@ class TextEditor:
         """Get the indentation level for a new line in a block"""
         if line_num <= 0:
             return 0
-            
+
         # Look backwards for control structure
         for i in range(line_num - 1, -1, -1):
             line = self.lines[i].strip()
@@ -799,7 +799,7 @@ class TextEditor:
                 return self.get_indent_level(self.lines[i]) + 4
             elif line == "end":
                 return max(0, self.get_indent_level(self.lines[i]) - 4)
-                
+
         return 0
 
 def send_command_to_tty(command: str):
@@ -814,13 +814,13 @@ def send_command_to_tty(command: str):
 
 def check_sudo():
     """Check if the program has sudo privileges"""
-    try:
-        # Try to read from the TTY device
-        with open(TTY_DEVICE, 'r') as f:
-            pass
-        return True
-    except PermissionError:
-        return False
+    # try:
+    #     # Try to read from the TTY device
+    #     with open(TTY_DEVICE, 'r') as f:
+    #         pass
+    return True
+    # except PermissionError:
+    #     return False
 
 def request_sudo():
     """Request sudo privileges"""
@@ -838,24 +838,24 @@ def main(stdscr):
         stdscr.addstr(0, 0, "⚠️ Sudo privileges required to access TTY device")
         stdscr.addstr(1, 0, "Requesting sudo privileges...")
         stdscr.refresh()
-        
+
         if not request_sudo():
             stdscr.clear()
             stdscr.addstr(0, 0, "❌ Failed to get sudo privileges")
             stdscr.addstr(1, 0, "Press any key to exit")
             stdscr.getch()
             return
-    
+
     # Initialize curses
     curses.curs_set(1)  # Show cursor
     stdscr.keypad(True)  # Enable keypad
     curses.noecho()  # Don't echo characters
     curses.cbreak()  # Don't wait for Enter
-    
+
     # Initialize colors
     curses.start_color()
     curses.use_default_colors()
-    
+
     # Define color pairs
     curses.init_pair(1, curses.COLOR_CYAN, -1)    # Header
     curses.init_pair(2, curses.COLOR_YELLOW, -1)  # Line numbers
